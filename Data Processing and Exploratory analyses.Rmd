@@ -7,6 +7,7 @@ author:
   - "Aung Nay Win,"
   - "Yuqi Cheng"
 output: github_document
+always_allow_html: true
 ---
 
 **Date:** 2023-11-10
@@ -16,6 +17,9 @@ library(tidyverse)
 library(rvest)
 library(httr)
 library(plotly)
+library(broom)
+library(modelr)
+library(maps)
 ```
 
 # Data processing
@@ -91,9 +95,11 @@ ggplot(age_summary, aes(x = age, y = total_hiv_diagnoses)) +
        x = "Age Group",
        y = "Total HIV Diagnoses") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  geom_text(aes(label=total_hiv_diagnoses), vjust=-0.5, color="black", size=3.5)
 ```
 summary:
+Both the nyc_HIV1 dataset and the nyc_HIV1 data have 11 variables, nyc_HIV1 is the data related to the number of patients with HIV by gender and nyc_HIV2 is the data related to the number of patients with HIV by age. When analyzing the number of HIV patients by race, the results show that Latino/Hispanic races are used for high prevalence and there are more males than females. When analyzing the number of HIV patients by age group, the results showed that 20-29 year olds had the highest number of total diagnoses and 13-19 year olds had the lowest number of diagnoses.
 
 **Show the map of NYC HIV service resources location.**
 ```{r}
@@ -117,6 +123,7 @@ m <- leaflet(filtered_data) %>%
 print(m)
 ```
 summary:
+Here, an interactive map was created using the leaflet package to visualize the distribution of HIV service facilities and detailed information to help better understand the allocation of resources for HIV prevention and treatment.
 
 **Show the distribution of the HIV/AIDS diagnoses by neighborhood.** 
 ```{r}
@@ -131,13 +138,43 @@ ggplot(diagnoses, aes(x = reorder(borough, hiv_diagnoses_num), y = hiv_diagnoses
   labs(x = "Neighborhood",
        y = "Number of HIV Diagnoses",
        title = "HIV Diagnoses by Neighborhood") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   coord_flip()
 ```
+```{r}
+filtered_data = HIV_service[HIV_service$longitude != 0 & HIV_service$latitude != 0,]
+# Create the map
+m <- leaflet(filtered_data) %>%
+  addTiles("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}") %>%
+  addCircleMarkers(
+    ~longitude, ~latitude,
+    radius = 4,
+    popup = ~paste("<strong>Facility Name:</strong>", facilityname,
+                   "<br><strong>Service Type:</strong>", service_type,
+                   "<br><strong>Address:</strong>", address,
+                   "<br><strong>Borough:</strong>", borough,
+                   "<br><strong>Zip:</strong>", zipcode)
+  )
+m <- m %>% addCircleMarkers(
+  radius = sqrt(nyc_HIV1$hiv_diagnoses_num),
+  fillOpacity = 0.4,
+  color = "orange",
+  stroke = TRUE,
+  label = sprintf("HIV Diagnoses: %s", nyc_HIV1$hiv_diagnoses_num),
+  labelOptions = labelOptions(
+    textOnly = TRUE,
+    direction = "auto"
+  )
+)
+m
+```
 summary:
+The number of HIV cases varies by community, with the Staten Island community having a much smaller number of confirmed cases, the Brooklyn community having a larger number of confirmed cases, and the other communities having a similar number of cases.
+
 
 **Trend analysis:analyze the trend of the number of HIV/AIDS diagnoses over time.**
 ```{r}
-#work
 #work
 All <- nyc_HIV1 %>% 
   filter(sex == "All" & race == "All" & borough == "All")
@@ -153,12 +190,81 @@ ggplot(All, aes(x = year, y = hiv_diagnoses_num)) +
   )
 ```
 summary:
+The number of patients diagnosed in different years showed significant differences. The overall trend is decreasing from year to year. This also reflects the growing importance that has been placed on HIV.
+
+
 
 # Exploratory statistical analyses.
 **Correlation analysis:After the Visualizations is there any association between different variables such as neighborhood, age, gender, and race.**
 
+**T-test for HPV prevalence in gender-specific populations.**
 ```{r}
-#work
+female_data <- nyc_HIV1[nyc_HIV1$sex == "Female",]$hiv_diagnoses_num
+male_data <- nyc_HIV1[nyc_HIV1$sex == "Male",]$hiv_diagnoses_num
+# Perform T test
+t.test(female_data, male_data)
 ```
-T-test /ANOVA: Compare differences in HIV between two or more groups ( gender or racial).
-Chi-square test: Analyze associations between categorical variables (gender, race).
+summary:
+The t-test passed the test of significance indicating that there was a significant difference in the number of males and females with HIV.
+
+**Test whether "hiv_diagnoses_num" is significantly different across ethnicities.**
+```{r}
+anova1 <- anova(lm(hiv_diagnoses_num ~ race, data = nyc_HIV1))
+print(anova1)
+```
+summary:
+The ANOVA passed the test of significance, indicating that there is indeed a significant difference in the number of people of different races who have HIV.
+
+**Test whether "hiv_diagnoses_num" is significantly different between age groups.**
+```{r}
+anova2 <- anova(lm(hiv_diagnoses_num ~ age, data = nyc_HIV2))
+print(anova2)
+```
+summary:
+The ANOVA passed the test of significance indicating that there is a significant difference in the number of HIV in different age groups.
+
+**Test whether there is a significant difference between people of different races and different age groups.**
+```{r}
+race_table <- table(nyc_HIV1$race, nyc_HIV1$sex)
+race_table
+# Perform chi-square test
+chisq.test(race_table)
+```
+summary:
+The chi-square test passes the test of significance, indicating that there is a significant relationship between race and gender.
+
+# linear regression analysis
+```{r}
+# Defining a Unique Thermal Coding Processor
+library(caret)
+encoder <- dummyVars(~ borough + sex + race, data = nyc_HIV1)
+# Solo thermal coding of data
+encoded_data <- predict(encoder, newdata = nyc_HIV1)
+# Merging the coded and original data sets
+nyc_HIV3 <- cbind(nyc_HIV1, encoded_data)
+nyc_HIV4<-nyc_HIV3[,-c(2,3,4,5,7,8,9,10,11,12,18,21)]
+model <- lm(hiv_diagnoses_num ~. , data = nyc_HIV4)
+summary(model)
+```
+summary:
+The coefficients of all variables passed the significance test, indicating that all of these independent variables have a significant effect on hiv_diagnoses_num. The coefficient before the variable "boroughStaten\\\nIsIand" has the largest absolute value, which means that it has the largest effect on the number of HIV patients. In addition, the coefficients before these variables are all negative, indicating that they all negatively affect hiv_diagnoses_num.Finally, the multiple linear regression model constructed ishiv_diagnoses_num=4514.4981-2.0224*year-354.5227*boroughBronx-358.4969*boroughBrooklyn-362.8923*boroughManhattan-363.2155*boroughQueens-373.2117*boroughStaten\\nIsland-26.8822*sexFemale-6.1453*sexMale-62.6910*raceAsian /Pacific\\nIslander-36.4375*raceBlack-41.7176*raceLatino/Hispanic-65.3393*raceOther/Unknown-57.9514*raceWhite.
+
+# Regression model test
+```{r}
+#Drawing demonstration
+par(mfrow=c(2, 2))  
+plot(model)
+
+# Plot of predicted values against residuals
+residuals <- resid(model)
+fitted_values <- predict(model)
+plot(fitted_values, residuals,
+     xlab = "Fitted values",
+     ylab = "Residuals",
+     main = "Residuals vs. Fitted")
+abline(h = 0, col = "red")
+```
+
+**summary:Here is a test of the effectiveness of the regression model constructed above. Use plot(model) to draw residual plots, scatter plots and other diagnostic plots. Residual plots are used to check for linear properties, heteroskedasticity, outliers, etc. Scatter plots can be used to check for correlation between independent variables, and QQ plots are used to check whether the residuals conform to the assumption of normal distribution. Here, we can see that the residuals do not conform well to normality and randomness. Analyzing the reason, it may be due to the existence of individual outliers, which affects the distribution of the data and the distribution of the residuals, making them not conform to normality and randomness.**
+
+**if github md knit fail,change to the html output“**
