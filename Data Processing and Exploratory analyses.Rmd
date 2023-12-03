@@ -7,6 +7,7 @@ author:
   - "Aung Nay Win,"
   - "Yuqi Cheng"
 output: github_document
+always_allow_html: true
 ---
 
 **Date:** 2023-11-10
@@ -18,6 +19,7 @@ library(httr)
 library(plotly)
 library(broom)
 library(modelr)
+library(maps)
 ```
 
 # Data processing
@@ -194,6 +196,7 @@ The number of patients diagnosed in different years showed significant differenc
 
 # Exploratory statistical analyses.
 **Correlation analysis:After the Visualizations is there any association between different variables such as neighborhood, age, gender, and race.**
+
 **T-test for HPV prevalence in gender-specific populations.**
 ```{r}
 female_data <- nyc_HIV1[nyc_HIV1$sex == "Female",]$hiv_diagnoses_num
@@ -242,20 +245,24 @@ nyc_HIV3 <- cbind(nyc_HIV1, encoded_data)
 nyc_HIV4<-nyc_HIV3[,-c(2,3,4,5,7,8,9,10,11,12,18,21)]
 model <- lm(hiv_diagnoses_num ~. , data = nyc_HIV4)
 summary(model)
+```
+summary:
+The coefficients of all variables passed the significance test, indicating that all of these independent variables have a significant effect on hiv_diagnoses_num. The coefficient before the variable "boroughStaten\\\nIsIand" has the largest absolute value, which means that it has the largest effect on the number of HIV patients. In addition, the coefficients before these variables are all negative, indicating that they all negatively affect hiv_diagnoses_num.Finally, the multiple linear regression model constructed ishiv_diagnoses_num=4514.4981-2.0224*year-354.5227*boroughBronx-358.4969*boroughBrooklyn-362.8923*boroughManhattan-363.2155*boroughQueens-373.2117*boroughStaten\\nIsland-26.8822*sexFemale-6.1453*sexMale-62.6910*raceAsian /Pacific\\nIslander-36.4375*raceBlack-41.7176*raceLatino/Hispanic-65.3393*raceOther/Unknown-57.9514*raceWhite.
+
+# Regression model test
+```{r}
 #Drawing demonstration
 par(mfrow=c(2, 2))  
 plot(model)
-# Plot of predicted values against residuals
-nyc_HIV4=nyc_HIV4|>
-  add_predictions(model, var = "fitted_values")|>
-  add_residuals(model, var = "residuals")
 
-ggplot(nyc_HIV4, aes(x = fitted_values, y = residuals)) +
-  geom_point() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  labs(title = "Residuals vs Fitted Values",
-       x = "Fitted Values",
-       y = "Residuals")
+# Plot of predicted values against residuals
+residuals <- resid(model)
+fitted_values <- predict(model)
+plot(fitted_values, residuals,
+     xlab = "Fitted values",
+     ylab = "Residuals",
+     main = "Residuals vs. Fitted")
+abline(h = 0, col = "red")
 ```
 
-
+**summary:Here is a test of the effectiveness of the regression model constructed above. Use plot(model) to draw residual plots, scatter plots and other diagnostic plots. Residual plots are used to check for linear properties, heteroskedasticity, outliers, etc. Scatter plots can be used to check for correlation between independent variables, and QQ plots are used to check whether the residuals conform to the assumption of normal distribution. Here, we can see that the residuals do not conform well to normality and randomness. Analyzing the reason, it may be due to the existence of individual outliers, which affects the distribution of the data and the distribution of the residuals, making them not conform to normality and randomness.**
